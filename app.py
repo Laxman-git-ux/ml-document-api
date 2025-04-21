@@ -1,44 +1,42 @@
 from flask import Flask, request, jsonify
-from PIL import Image
-from io import BytesIO
-import pytesseract
 import base64
-import spacy
 
 app = Flask(__name__)
 
-# Load spaCy NLP model
-nlp = spacy.load("en_core_web_sm")
-
 @app.route('/process', methods=['POST'])
 def process_document():
-    data = request.get_json()
-    filename = data.get("filename", "unknown")
-    file_content = data.get("fileContent", "")
+    data = request.json
+    print("Received data:", data)
 
-    # Decode base64 to image
+    filename = data.get("filename")
+    base64_content = data.get("fileContent")
+
+    # Decode the content for basic text analysis
     try:
-        image_data = base64.b64decode(file_content)
-        image = Image.open(BytesIO(image_data))
-        text = pytesseract.image_to_string(image)
+        file_bytes = base64.b64decode(base64_content)
+        text_content = file_bytes.decode('utf-8', errors='ignore')
     except Exception as e:
-        return jsonify({"error": f"Failed to decode/process file: {str(e)}"}), 400
+        return jsonify({"error": f"Failed to decode file: {str(e)}"}), 400
 
-    # NLP processing
-    doc = nlp(text)
-    people = [ent.text for ent in doc.ents if ent.label_ == "PERSON"]
-    dates = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
+    # 🔍 Basic content analysis (replace with real ML later)
+    document_type = "Contract" if "contract" in text_content.lower() else "Unknown"
+    signature_detected = "signature" in text_content.lower()
+    expiry_issues_found = "expired" in text_content.lower() or "expiry" in text_content.lower()
 
+    # Simulate some validation score
+    validation_score = round(0.5 + (len(text_content) % 50) / 100, 2)
+
+    # Build the smart response
     result = {
-        "documentType": "Detected: Offer Letter" if "offer" in text.lower() else "General Document",
-        "validationScore": round(len(people) / 5, 2),  # Dummy logic
-        "missingFields": "Name, Passport No" if len(people) < 2 else "",
-        "signatureDetected": "signature" in text.lower(),
-        "expiryIssuesFound": any("2020" in d or "expired" in d.lower() for d in dates),
-        "detectedExpiryFields": ", ".join(dates)
+        "documentType": document_type,
+        "signatureDetected": signature_detected,
+        "expiryIssuesFound": expiry_issues_found,
+        "validationScore": validation_score,
+        "missingFields": "None",
+        "detectedExpiryFields": "Expiry Date, Valid Until" if expiry_issues_found else ""
     }
 
-    return jsonify(result)
+    return jsonify(result), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0")
+    app.run(host='0.0.0.0', debug=True)
