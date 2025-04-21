@@ -1,23 +1,30 @@
 from flask import Flask, request, jsonify
-import os
+import base64
 
 app = Flask(__name__)
 
 @app.route('/process', methods=['POST'])
 def process_document():
-    data = request.json  # JSON sent from Salesforce or Postman
+    data = request.json
     print("Received data:", data)
 
-    # Just for demo: pretend we did ML processing here
+    filename = data.get('filename')
+    file_content_base64 = data.get('fileContent')
+
+    # Decode base64 to bytes (optional: save, analyze, OCR, etc.)
+    file_bytes = base64.b64decode(file_content_base64)
+
+    # Demo response structure to match Apex expectations
     result = {
-        "document_type": "Contract",
-        "signature_detected": True,
-        "expiry_issues_found": False,
-        "validation_score": 0.92
+        "documentType": "Contract",
+        "validationScore": 0.92,
+        "missingFields": "Signature Date",
+        "signatureDetected": True,
+        "expiryIssuesFound": False,
+        "detectedExpiryFields": "2025-12-31"
     }
 
     return jsonify(result), 200
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(debug=True, host='0.0.0.0')
