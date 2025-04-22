@@ -34,6 +34,10 @@ def extract_text_from_docx(file_bytes):
         if os.path.exists(filepath):
             os.remove(filepath)
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "ML Document API is up and running!"}), 200
+
 @app.route('/process', methods=['POST'])
 def process_document():
     data = request.json
