@@ -1,32 +1,59 @@
-from flask import Flask, request, jsonify
+import os
 import base64
+from flask import Flask, request, jsonify
+from PyPDF2 import PdfReader
+import docx
 
 app = Flask(__name__)
+
+def extract_text_from_pdf(file_bytes):
+    try:
+        with open("temp.pdf", "wb") as f:
+            f.write(file_bytes)
+        reader = PdfReader("temp.pdf")
+        text = "\n".join([page.extract_text() or "" for page in reader.pages])
+        os.remove("temp.pdf")
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {e}"
+
+def extract_text_from_docx(file_bytes):
+    try:
+        with open("temp.docx", "wb") as f:
+            f.write(file_bytes)
+        doc = docx.Document("temp.docx")
+        text = "\n".join([para.text for para in doc.paragraphs])
+        os.remove("temp.docx")
+        return text
+    except Exception as e:
+        return f"Error reading DOCX: {e}"
 
 @app.route('/process', methods=['POST'])
 def process_document():
     data = request.json
-    print("Received data:", data)
+    filename = data.get("filename", "")
+    base64_content = data.get("fileContent", "")
 
-    filename = data.get("filename")
-    base64_content = data.get("fileContent")
-
-    # Decode the content for basic text analysis
     try:
         file_bytes = base64.b64decode(base64_content)
-        text_content = file_bytes.decode('utf-8', errors='ignore')
     except Exception as e:
-        return jsonify({"error": f"Failed to decode file: {str(e)}"}), 400
+        return jsonify({"error": f"Base64 decode failed: {str(e)}"}), 400
 
-    # 🔍 Basic content analysis (replace with real ML later)
+    # Detect file type
+    if filename.lower().endswith(".pdf"):
+        text_content = extract_text_from_pdf(file_bytes)
+    elif filename.lower().endswith(".docx"):
+        text_content = extract_text_from_docx(file_bytes)
+    else:
+        # Assume plain text
+        text_content = file_bytes.decode('utf-8', errors='ignore')
+
+    # Basic Analysis
     document_type = "Contract" if "contract" in text_content.lower() else "Unknown"
     signature_detected = "signature" in text_content.lower()
     expiry_issues_found = "expired" in text_content.lower() or "expiry" in text_content.lower()
-
-    # Simulate some validation score
     validation_score = round(0.5 + (len(text_content) % 50) / 100, 2)
 
-    # Build the smart response
     result = {
         "documentType": document_type,
         "signatureDetected": signature_detected,
@@ -37,6 +64,3 @@ def process_document():
     }
 
     return jsonify(result), 200
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
